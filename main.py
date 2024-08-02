@@ -3,7 +3,6 @@ import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from config import TOKEN
-from commands import setup_commands
 from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
 
 # Define intents
