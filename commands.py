@@ -1,8 +1,10 @@
+# commands.py
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils import ensure_awards_channel, create_congratulatory_message
-
+from datetime import datetime, timedelta, timezone
+from shared import message_reactions, awards_channels  # Ensure this is correct and matches the shared module
+from utils import ensure_awards_channel, ensure_awards_channel_and_permissions
 def setup_commands(bot):
     @bot.tree.command(name="doaward", description="Trigger the award announcement")
     async def doaward(interaction: discord.Interaction):
@@ -29,11 +31,10 @@ def setup_commands(bot):
             await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
             return
 
-        channel_id = bot.awards_channels.get(interaction.guild.id)
-        if not channel_id:
-            await ensure_awards_channel(interaction.guild, bot)
-            channel_id = bot.awards_channels.get(interaction.guild.id)
-        
+        # Ensure the awards channel exists and has the correct permissions
+        await ensure_awards_channel_and_permissions(interaction.guild, bot)
+
+        channel_id = awards_channels.get(interaction.guild.id)
         if channel_id:
             channel = interaction.guild.get_channel(channel_id)
             if channel:
@@ -54,13 +55,17 @@ def setup_commands(bot):
 
                     if top_message:
                         await channel.send(f"🎉 Congratulations {top_message.author.mention} for having the most reacted message this week with {top_reaction_count} reactions! The message was: {top_message.content}")
+                        response_message = "Award announcement triggered successfully!"
                     else:
                         await channel.send("No top message found this week.")
-                except discord.Forbidden:
-                    await interaction.response.send_message("I don't have permission to send messages in the awards channel.", ephemeral=True)
-            else:
-                await interaction.response.send_message("The awards channel does not exist. Please try again later.", ephemeral=True)
-        else:
-            await interaction.response.send_message("Could not find or create the awards channel.", ephemeral=True)
+                        response_message = "Award announcement triggered successfully, but no top message was found."
 
-        await interaction.response.send_message("Award announcement triggered successfully!")
+                except discord.Forbidden:
+                    response_message = "I don't have permission to send messages in the awards channel."
+            else:
+                response_message = "The awards channel does not exist. Please try again later."
+        else:
+            response_message = "Could not find or create the awards channel."
+
+        # Send the final response
+        await interaction.response.send_message(response_message, ephemeral=True)

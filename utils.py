@@ -1,5 +1,30 @@
+# utils.py
 import random
 import discord
+
+async def ensure_awards_channel_and_permissions(guild, bot):
+    """Ensure the awards channel exists and has proper permissions."""
+    await ensure_awards_channel(guild, bot)
+    channel_id = bot.awards_channels.get(guild.id)
+    if channel_id:
+        channel = guild.get_channel(channel_id)
+        if channel:
+            # Update channel permissions to allow only the bot to send messages
+            perms = discord.PermissionOverwrite()
+            perms.send_messages = True
+            perms.read_messages = True
+
+            # Deny permissions for @everyone and other members
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(send_messages=False, read_messages=True),
+                bot.user: perms
+            }
+            await channel.edit(overwrites=overwrites)
+        else:
+            print(f"'awards' channel not found in {guild.name}.")
+    else:
+        print(f"'awards' channel not set up for {guild.name}.")
+
 
 async def ensure_awards_channel(guild, bot):
     # Check if the awards channel exists

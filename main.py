@@ -1,9 +1,10 @@
+# main.py
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from config import TOKEN
 from commands import setup_commands
-from utils import ensure_awards_channel, create_congratulatory_message
+from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
 
 # Define intents
 intents = discord.Intents.default()
@@ -21,27 +22,61 @@ message_reactions = {}
 # Dictionary to store awards channel IDs
 bot.awards_channels = {}
 
+async def send_message_to_awards_channel(guild, message_content):
+    await ensure_awards_channel_and_permissions(guild, bot)
+    channel_id = bot.awards_channels.get(guild.id)
+    if channel_id:
+        channel = guild.get_channel(channel_id)
+        if channel:
+            try:
+                await channel.send(message_content)
+            except discord.Forbidden:
+                print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
+        else:
+            print(f"'awards' channel not found in {guild.name}.")
+            await ensure_awards_channel_and_permissions(guild, bot)
+            channel_id = bot.awards_channels.get(guild.id)
+            channel = guild.get_channel(channel_id)
+            if channel:
+                try:
+                    await channel.send(message_content)
+                except discord.Forbidden:
+                    print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
+    else:
+        print(f"'awards' channel not set up for {guild.name}.")
+        await ensure_awards_channel_and_permissions(guild, bot)
+        channel_id = bot.awards_channels.get(guild.id)
+        channel = guild.get_channel(channel_id)
+        if channel:
+            try:
+                await channel.send(message_content)
+            except discord.Forbidden:
+                print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
+
+async def send_update_message():
+    # Choose a channel to send the update message
+    for guild in bot.guilds:
+        await send_message_to_awards_channel(guild, f"The bot '{bot.user.name}' has been updated!")
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name}')
     print("Bot is online.")
     await bot.tree.sync()  # Sync application commands
     print("Application commands synced.")
+    await send_update_message()  # Send the update message when bot starts
     check_most_reacted_message.start()
 
 @bot.event
 async def on_guild_join(guild):
     print(f"Joined new guild: {guild.name}")
-    try:
-        await ensure_awards_channel(guild, bot)
-    except discord.Forbidden:
-        print(f"Failed to create or access the awards channel in {guild.name}. The bot might not have the necessary permissions.")
+    await ensure_awards_channel_and_permissions(guild, bot)
 
 @bot.event
 async def on_member_join(member):
     # Ensure awards channel exists when a new member joins
     if member.guild.id not in bot.awards_channels:
-        await ensure_awards_channel(member.guild, bot)
+        await ensure_awards_channel_and_permissions(member.guild, bot)
 
 @bot.event
 async def on_reaction_add(reaction, user):
@@ -53,7 +88,7 @@ async def on_reaction_add(reaction, user):
         message_reactions[message.id] = {"message": message, "reaction_count": 0}
     message_reactions[message.id]["reaction_count"] += 1
 
-@tasks.loop(hours=8)
+@tasks.loop(seconds = 15)
 async def check_most_reacted_message():
     print("Checking for most reacted message...")
     one_week_ago = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(weeks=1)
@@ -72,47 +107,16 @@ async def check_most_reacted_message():
             top_message = data["message"]
 
     for guild in bot.guilds:
-        channel_id = bot.awards_channels.get(guild.id)
-        if channel_id:
-            channel = guild.get_channel(channel_id)
-            if channel:
-                if top_message:
-                    try:
-                        title = "Emoji Magnet"
-                        condition = "receiving the most amount of reactions on your message"
-                        additional_info = (f"""{top_message.content}
-                                            📈 Reactions: {top_reaction_count} 📈""")
-                        congrats = create_congratulatory_message(title, top_message.author.mention, condition, additional_info)
-                        
-                        await channel.send(congrats)
-                    except discord.Forbidden:
-                        print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
-                else:
-                    try:
-                        await channel.send("No top message found this week.")
-                    except discord.Forbidden:
-                        print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
-            else:
-                print(f"'awards' channel not found in {guild.name}.")
-                await ensure_awards_channel(guild, bot)
-                channel_id = bot.awards_channels.get(guild.id)
-                channel = guild.get_channel(channel_id)
-                if channel:
-                    try:
-                        await channel.send("📢 Manually triggered award announcement!")
-                    except discord.Forbidden:
-                        print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
+        if top_message:
+            title = "Emoji Magnet"
+            condition = "receiving the most amount of reactions on your message"
+            additional_info = (f"""{top_message.content}
+                                📈 Reactions: {top_reaction_count} 📈""")
+            congrats = create_congratulatory_message(title, top_message.author.mention, condition, additional_info)
+            await send_message_to_awards_channel(guild, congrats)
         else:
-            print(f"'awards' channel not set up for {guild.name}.")
-            await ensure_awards_channel(guild, bot)
-            channel_id = bot.awards_channels.get(guild.id)
-            channel = guild.get_channel(channel_id)
-            if channel:
-                try:
-                    await channel.send("📢 Manually triggered award announcement!")
-                except discord.Forbidden:
-                    print(f"Cannot send message to 'awards' channel in {guild.name}. Missing permissions.")
-
+            await send_message_to_awards_channel(guild, "No top message found this week.")
+            
     message_reactions.clear()
 
 setup_commands(bot)
