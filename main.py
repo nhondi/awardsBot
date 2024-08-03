@@ -5,7 +5,7 @@ from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from config import TOKEN
 from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
-from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts, link_counts
+from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts, link_counts, user_reaction_counts
 import asyncio
 import re
 
@@ -134,6 +134,12 @@ async def on_reaction_add(reaction, user):
         message_reactions[message.id] = {"message": message, "reaction_count": 0}
     message_reactions[message.id]["reaction_count"] += 1
 
+     # Track reactions added by users for "React-ive" award
+    if user.id not in user_reaction_counts:
+        user_reaction_counts[user.id] = 0
+    user_reaction_counts[user.id] += 1
+    print(f"User {user.id} has added {user_reaction_counts[user.id]} reactions.")
+
 @tasks.loop(seconds=TASK_INTERVAL)
 async def check_awards():
     print("Checking for awards...")
@@ -153,6 +159,9 @@ async def check_awards():
 
     most_links_user = None
     most_links_count = 0
+
+    most_reactions_user = None
+    most_reactions_count = 0
 
     # Check messages for both criteria
     for message_id, data in message_reactions.items():
@@ -199,6 +208,13 @@ async def check_awards():
             most_links_count = count
             most_links_user = user_id
 
+    # Determine the user with the most reactions given for "React-ive" award
+    for user_id, count in user_reaction_counts.items():
+        print(f"User {user_id} has given {count} reactions.")
+        if count > most_reactions_count:
+            most_reactions_count = count
+            most_reactions_user = user_id
+
     # Notify guilds about the awards
     for guild in bot.guilds:
         # Emoji Magnet Award
@@ -236,7 +252,7 @@ async def check_awards():
                 await send_message_to_awards_channel(guild, congrats)
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                await send_message_to_awards_channel(guild, "No user found with the most messages this week.")
+                #await send_message_to_awards_channel(guild, "No user found with the most messages this week.")
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
             #await send_message_to_awards_channel(guild, "No messages found for Fluent in Yapanese award this week.")
@@ -253,7 +269,7 @@ async def check_awards():
                 await send_message_to_awards_channel(guild, congrats)
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                await send_message_to_awards_channel(guild, "No user found with the most edits this week.")
+                #await send_message_to_awards_channel(guild, "No user found with the most edits this week.")
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
             #await send_message_to_awards_channel(guild, "No edits found for the Autocorrect Victim award this week.")
@@ -273,7 +289,24 @@ async def check_awards():
                 #await send_message_to_awards_channel(guild, "No user found with the most links this week.")
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            await send_message_to_awards_channel(guild, "No messages found for Nigerian Prince award this week.")
+            #await send_message_to_awards_channel(guild, "No messages found for Nigerian Prince award this week.")
+            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+
+        # React-ive Award
+        if most_reactions_user:
+            member = guild.get_member(most_reactions_user)
+            if member:
+                title = "React-ive"
+                condition = "sending the most reactions on messages"
+                additional_info = f"Reactions given: {most_reactions_count}"
+                congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
+                await send_message_to_awards_channel(guild, congrats)
+                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            else:
+                await send_message_to_awards_channel(guild, "No user found with the most reactions given this week.")
+                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+        else:
+            await send_message_to_awards_channel(guild, "No reactions found for React-ive award this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
     message_reactions.clear()
@@ -281,6 +314,7 @@ async def check_awards():
     message_counts.clear()
     edit_counts.clear()
     link_counts.clear()
+    user_reaction_counts.clear()
 
 # Run the bot
 if TOKEN:
