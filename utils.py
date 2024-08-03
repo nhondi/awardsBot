@@ -1,11 +1,11 @@
-# utils.py
 import random
 import discord
+from shared import awards_channels
 
 async def ensure_awards_channel_and_permissions(guild, bot):
     """Ensure the awards channel exists and has proper permissions."""
     await ensure_awards_channel(guild, bot)
-    channel_id = bot.awards_channels.get(guild.id)
+    channel_id = awards_channels.get(guild.id)
     if channel_id:
         channel = guild.get_channel(channel_id)
         if channel:
@@ -19,12 +19,17 @@ async def ensure_awards_channel_and_permissions(guild, bot):
                 guild.default_role: discord.PermissionOverwrite(send_messages=False, read_messages=True),
                 bot.user: perms
             }
-            await channel.edit(overwrites=overwrites)
+            try:
+                await channel.edit(overwrites=overwrites)
+                print(f"Updated permissions for 'awards' channel in {guild.name}.")
+            except discord.Forbidden:
+                print(f"Cannot edit 'awards' channel permissions in {guild.name}. Missing permissions.")
+            except discord.HTTPException as e:
+                print(f"Failed to update 'awards' channel permissions in {guild.name}. HTTPException: {e}")
         else:
             print(f"'awards' channel not found in {guild.name}.")
     else:
         print(f"'awards' channel not set up for {guild.name}.")
-
 
 async def ensure_awards_channel(guild, bot):
     # Check if the awards channel exists
@@ -38,11 +43,13 @@ async def ensure_awards_channel(guild, bot):
         except discord.Forbidden:
             print(f"Cannot create 'awards' channel in {guild.name}. Missing permissions.")
             return
+        except discord.HTTPException as e:
+            print(f"Failed to create 'awards' channel in {guild.name}. HTTPException: {e}")
     else:
         print(f"Found 'awards' channel in {guild.name}")
     
     # Store the awards channel ID
-    bot.awards_channels[guild.id] = channel.id
+    awards_channels[guild.id] = channel.id
 
 def get_random_congratulatory_phrase() -> str:
     phrases = [
