@@ -5,8 +5,9 @@ from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from config import TOKEN
 from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
-from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts
+from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts, link_counts
 import asyncio
+import re
 
 # Define intents
 intents = discord.Intents.default()
@@ -102,6 +103,13 @@ async def on_message(message):
         message_counts[message.author.id] += 1
         print(f"User {message.author.id} has sent {message_counts[message.author.id]} messages.")
 
+        # Track link count for "Nigerian Prince" award
+        if re.search(r'http[s]?://', message.content):
+            if message.author.id not in link_counts:
+                link_counts[message.author.id] = 0
+            link_counts[message.author.id] += 1
+            print(f"User {message.author.id} has sent {link_counts[message.author.id]} links.")
+
     await bot.process_commands(message)  # Ensure commands are still processed
 
 @bot.event
@@ -143,6 +151,9 @@ async def check_awards():
     most_edits_user = None
     most_edits_count = 0
 
+    most_links_user = None
+    most_links_count = 0
+
     # Check messages for both criteria
     for message_id, data in message_reactions.items():
         message_created = data["message"].created_at
@@ -181,6 +192,13 @@ async def check_awards():
             most_edits_count = count
             most_edits_user = user_id
 
+    # Determine the user with the most links sent for "Nigerian Prince" award
+    for user_id, count in link_counts.items():
+        print(f"User {user_id} has sent {count} links.")
+        if count > most_links_count:
+            most_links_count = count
+            most_links_user = user_id
+
     # Notify guilds about the awards
     for guild in bot.guilds:
         # Emoji Magnet Award
@@ -192,7 +210,7 @@ async def check_awards():
             await send_message_to_awards_channel(guild, congrats)
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            await send_message_to_awards_channel(guild, "No top message found this week.")
+            #await send_message_to_awards_channel(guild, "No top message found this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Waffle Maker Award
@@ -204,7 +222,7 @@ async def check_awards():
             await send_message_to_awards_channel(guild, congrats)
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            await send_message_to_awards_channel(guild, "No message found with the longest length this week.")
+            #await send_message_to_awards_channel(guild, "No message found with the longest length this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Fluent in Yapanese Award
@@ -221,7 +239,7 @@ async def check_awards():
                 await send_message_to_awards_channel(guild, "No user found with the most messages this week.")
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            await send_message_to_awards_channel(guild, "No messages found for Fluent in Yapanese award this week.")
+            #await send_message_to_awards_channel(guild, "No messages found for Fluent in Yapanese award this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Autocorrect Victim Award
@@ -238,13 +256,31 @@ async def check_awards():
                 await send_message_to_awards_channel(guild, "No user found with the most edits this week.")
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            await send_message_to_awards_channel(guild, "No edits found for the Autocorrect Victim award this week.")
+            #await send_message_to_awards_channel(guild, "No edits found for the Autocorrect Victim award this week.")
+            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+
+        # Nigerian Prince Award
+        if most_links_user:
+            member = guild.get_member(most_links_user)
+            if member:
+                title = "Nigerian Prince"
+                condition = "sending the most links"
+                additional_info = f"Links sent: {most_links_count}"
+                congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
+                await send_message_to_awards_channel(guild, congrats)
+                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            else:
+                #await send_message_to_awards_channel(guild, "No user found with the most links this week.")
+                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+        else:
+            await send_message_to_awards_channel(guild, "No messages found for Nigerian Prince award this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
     message_reactions.clear()
     message_lengths.clear()
     message_counts.clear()
     edit_counts.clear()
+    link_counts.clear()
 
 # Run the bot
 if TOKEN:

@@ -15,3 +15,6 @@ awards_channels = {}
 
 # Dictionary to store message edit counts for each user
 edit_counts = {}
+
+# Dictionary to store link counts for each user
+link_counts = {}
