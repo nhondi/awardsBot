@@ -1,10 +1,11 @@
 # main.py
+
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from config import TOKEN
 from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
-from shared import message_reactions, message_lengths, awards_channels, message_counts
+from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts
 import asyncio
 
 # Define intents
@@ -102,7 +103,19 @@ async def on_message(message):
         print(f"User {message.author.id} has sent {message_counts[message.author.id]} messages.")
 
     await bot.process_commands(message)  # Ensure commands are still processed
-    
+
+@bot.event
+async def on_message_edit(before, after):
+    if before.author.bot:
+        return
+
+    guild_id = before.guild.id if before.guild else None
+    if guild_id and before.id != awards_channels.get(guild_id):
+        if before.author.id not in edit_counts:
+            edit_counts[before.author.id] = 0
+        edit_counts[before.author.id] += 1
+        print(f"User {before.author.id} has edited a message. Total edits: {edit_counts[before.author.id]}")
+
 @bot.event
 async def on_reaction_add(reaction, user):
     if user.bot:
@@ -126,6 +139,9 @@ async def check_awards():
     
     most_messages_user = None
     most_messages_count = 0
+    
+    most_edits_user = None
+    most_edits_count = 0
 
     # Check messages for both criteria
     for message_id, data in message_reactions.items():
@@ -157,6 +173,13 @@ async def check_awards():
         if count > most_messages_count:
             most_messages_count = count
             most_messages_user = user_id
+
+    # Determine the user with the most edits for "Autocorrect Victim" award
+    for user_id, count in edit_counts.items():
+        print(f"User {user_id} has edited messages {count} times.")
+        if count > most_edits_count:
+            most_edits_count = count
+            most_edits_user = user_id
 
     # Notify guilds about the awards
     for guild in bot.guilds:
@@ -201,9 +224,27 @@ async def check_awards():
             await send_message_to_awards_channel(guild, "No messages found for Fluent in Yapanese award this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
+        # Autocorrect Victim Award
+        if most_edits_user:
+            member = guild.get_member(most_edits_user)
+            if member:
+                title = "Autocorrect Victim"
+                condition = "editing the most messages"
+                additional_info = f"Total edits: {most_edits_count}"
+                congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
+                await send_message_to_awards_channel(guild, congrats)
+                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            else:
+                await send_message_to_awards_channel(guild, "No user found with the most edits this week.")
+                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+        else:
+            await send_message_to_awards_channel(guild, "No edits found for the Autocorrect Victim award this week.")
+            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+
     message_reactions.clear()
     message_lengths.clear()
     message_counts.clear()
+    edit_counts.clear()
 
 # Run the bot
 if TOKEN:
