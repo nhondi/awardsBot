@@ -106,6 +106,7 @@ async def on_ready():
     print("Application commands synced.")
     await send_update_message()  # Send the update message when bot starts
     check_awards.start()
+    activityCheck.start()
 
 @bot.event 
 async def on_guild_join(guild):
