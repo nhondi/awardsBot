@@ -33,7 +33,16 @@ def home():
 def status():
     return jsonify({"status": "Bot is running", "bot_name": bot.user.name})
 
+def get_flask_url():
+    # Get the Flask app URL from the environment or use a default
+    port = os.getenv('PORT', 3000)
+    hostname = socket.gethostname()
+    url = f'http://{hostname}:{port}'
+    return url
+
 def run_flask():
+    url = get_flask_url()
+    print(f"Flask app is running at: {url}")
     app.run(host='0.0.0.0', port=3000)
 
 # Define intents
