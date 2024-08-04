@@ -5,7 +5,17 @@ from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone
 from config import TOKEN
 from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
-from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts, link_counts, user_reaction_counts
+from shared import (
+    message_reactions,
+    message_lengths,
+    awards_channels,
+    message_counts,
+    edit_counts,
+    link_counts,
+    user_reaction_counts,
+    tag_counts,
+    image_counts
+)
 from constants import TASK_INTERVAL, AWARD_DISPLAY_DELAY
 import asyncio
 import re
@@ -70,7 +80,7 @@ async def on_ready():
     await send_update_message()  # Send the update message when bot starts
     check_awards.start()
 
-@bot.event
+@bot.event 
 async def on_guild_join(guild):
     print(f"Joined new guild: {guild.name}")
     await ensure_awards_channel_and_permissions(guild, bot)
@@ -88,7 +98,7 @@ async def on_message(message):
 
     guild_id = message.guild.id if message.guild else None
     awards_channel_id = awards_channels.get(guild_id)
-    
+
     # Track messages in all channels except the awards channel
     if guild_id and message.channel.id != awards_channel_id:
         if message.id not in message_lengths:
@@ -107,6 +117,22 @@ async def on_message(message):
             link_counts[message.author.id] += 1
             print(f"User {message.author.id} has sent {link_counts[message.author.id]} links.")
 
+        # Track tag count for "I am Him/Her" award
+        for user in message.mentions:
+            user_id = user.id
+            if user_id not in tag_counts:
+                tag_counts[user_id] = 0
+            tag_counts[user_id] += 1
+            print(f"User {user_id} has been tagged {tag_counts[user_id]} times.")
+
+        # Track image count for "Photographer" award
+        if message.attachments:
+            user_id = message.author.id
+            if user_id not in image_counts:
+                image_counts[user_id] = 0
+            image_counts[user_id] += 1
+            print(f"User {user_id} has posted {image_counts[user_id]} images.")
+
     await bot.process_commands(message)  # Ensure commands are still processed
 
 @bot.event
@@ -120,18 +146,18 @@ async def on_message_edit(before, after):
             edit_counts[before.author.id] = 0
         edit_counts[before.author.id] += 1
         print(f"User {before.author.id} has edited a message. Total edits: {edit_counts[before.author.id]}")
-
 @bot.event
 async def on_reaction_add(reaction, user):
     if user.bot:
         return
     message = reaction.message
     print(f"Reaction added: {reaction.emoji} by {user} on message: {message.id}")
+
     if message.id not in message_reactions:
         message_reactions[message.id] = {"message": message, "reaction_count": 0}
     message_reactions[message.id]["reaction_count"] += 1
 
-     # Track reactions added by users for "React-ive" award
+    # Track reactions added by users for "React-ive" award
     if user.id not in user_reaction_counts:
         user_reaction_counts[user.id] = 0
     user_reaction_counts[user.id] += 1
@@ -139,9 +165,7 @@ async def on_reaction_add(reaction, user):
 
 @tasks.loop(seconds=TASK_INTERVAL)
 async def check_awards():
-    print("Checking for awards...")
-    one_week_ago = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(weeks=1)
-    
+    print("Checking for awards...")   
     top_message = None
     top_reaction_count = 0
     
@@ -159,6 +183,14 @@ async def check_awards():
 
     most_reactions_user = None
     most_reactions_count = 0
+    
+    most_tagged_user = None
+    most_tagged_count = 0
+    
+    most_images_user = None
+    most_images_count = 0
+
+    one_week_ago = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(weeks=1)
 
     # Check messages for both criteria
     for message_id, data in message_reactions.items():
@@ -212,6 +244,20 @@ async def check_awards():
             most_reactions_count = count
             most_reactions_user = user_id
 
+    # I am Him/Her Award (Most Tagged)
+    for user_id, count in tag_counts.items():  # Assuming tag_counts dictionary
+        print(f"User {user_id} was tagged {count} times.")
+        if count > most_tagged_count:
+            most_tagged_count = count
+            most_tagged_user = user_id
+
+    # Photographer Award (Most Images Posted)
+    for user_id, count in image_counts.items():  # Assuming image_counts dictionary
+        print(f"User {user_id} posted {count} images.")
+        if count > most_images_count:
+            most_images_count = count
+            most_images_user = user_id
+
     # Notify guilds about the awards
     for guild in bot.guilds:
         # Emoji Magnet Award
@@ -221,10 +267,10 @@ async def check_awards():
             additional_info = f"""{top_message.content} 📈 Reactions: {top_reaction_count}"""
             congrats = create_congratulatory_message(title, top_message.author.mention, condition, additional_info)
             await send_message_to_awards_channel(guild, congrats)
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            #await send_message_to_awards_channel(guild, "No top message found this week.")
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            print(f"No top message found this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Waffle Maker Award
         if longest_message:
@@ -233,10 +279,10 @@ async def check_awards():
             additional_info = f"""{longest_message.content} 📏 Length: {max_length} characters"""
             congrats = create_congratulatory_message(title, longest_message.author.mention, condition, additional_info)
             await send_message_to_awards_channel(guild, congrats)
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            #await send_message_to_awards_channel(guild, "No message found with the longest length this week.")
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            print(f"No message found with the longest length this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Fluent in Yapanese Award
         if most_messages_user:
@@ -247,13 +293,12 @@ async def check_awards():
                 additional_info = f"Messages sent: {most_messages_count}"
                 congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
                 await send_message_to_awards_channel(guild, congrats)
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                #await send_message_to_awards_channel(guild, "No user found with the most messages this week.")
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+               print(f"No user found with the most messages this week.")
         else:
-            #await send_message_to_awards_channel(guild, "No messages found for Fluent in Yapanese award this week.")
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            print(f"No messages found for Fluent in Yapanese award this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Autocorrect Victim Award
         if most_edits_user:
@@ -264,13 +309,12 @@ async def check_awards():
                 additional_info = f"Total edits: {most_edits_count}"
                 congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
                 await send_message_to_awards_channel(guild, congrats)
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                #await send_message_to_awards_channel(guild, "No user found with the most edits this week.")
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+                print(f"No user found with the most edits this week.")
         else:
-            #await send_message_to_awards_channel(guild, "No edits found for the Autocorrect Victim award this week.")
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            print(f"No edits found for the Autocorrect Victim award this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # Nigerian Prince Award
         if most_links_user:
@@ -281,13 +325,12 @@ async def check_awards():
                 additional_info = f"Links sent: {most_links_count}"
                 congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
                 await send_message_to_awards_channel(guild, congrats)
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                #await send_message_to_awards_channel(guild, "No user found with the most links this week.")
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+                print(f"No user found with the most links this week.")
         else:
-            #await send_message_to_awards_channel(guild, "No messages found for Nigerian Prince award this week.")
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            print(f"No messages found for Nigerian Prince award this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
         # React-ive Award
         if most_reactions_user:
@@ -298,13 +341,44 @@ async def check_awards():
                 additional_info = f"Reactions given: {most_reactions_count}"
                 congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
                 await send_message_to_awards_channel(guild, congrats)
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                #await send_message_to_awards_channel(guild, "No user found with the most reactions given this week.")
-                await asyncio.sleep(AWARD_DISPLAY_DELAY)
+                print(f"No user found with the most reactions given this week.")
         else:
-            #await send_message_to_awards_channel(guild, "No reactions found for React-ive award this week.")
-            await asyncio.sleep(AWARD_DISPLAY_DELAY)
+            print(f"No reactions found for React-ive award this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
+
+        # I am Him/Her Award
+        if most_tagged_user:
+            member = guild.get_member(most_tagged_user)
+            if member:
+                title = "I am Him/Her"
+                condition = "being tagged the most"
+                additional_info = f"Times tagged: {most_tagged_count}"
+                congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
+                await send_message_to_awards_channel(guild, congrats)
+            else:
+                print(f"No user found with the HIM/HER award given this week.")
+        else:
+            print(f"No reactions found for HIM/HER award  this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
+
+        # Photographer Award
+        if most_images_user:
+            member = guild.get_member(most_images_user)
+            if member:
+                title = "Photographer"
+                condition = "posting the most images"
+                additional_info = f"Images posted: {most_images_count}"
+                congrats = create_congratulatory_message(title, member.mention, condition, additional_info)
+                await send_message_to_awards_channel(guild, congrats)
+            else:
+                print(f"No user found with the Photographer award given this week.")
+        else:
+            print(f"No reactions found for Photographer award  this week.")
+
+        await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
     message_reactions.clear()
     message_lengths.clear()
@@ -312,6 +386,8 @@ async def check_awards():
     edit_counts.clear()
     link_counts.clear()
     user_reaction_counts.clear()
+    tag_counts.clear()
+    image_counts.clear()
 
 # Run the bot
 if TOKEN:
