@@ -19,6 +19,22 @@ from shared import (
 from constants import TASK_INTERVAL, AWARD_DISPLAY_DELAY
 import asyncio
 import re
+from flask import Flask, jsonify
+from threading import Thread
+
+# Define Flask app
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+@app.route('/status')
+def status():
+    return jsonify({"status": "Bot is running", "bot_name": bot.user.name})
+
+def run_flask():
+    app.run(host='0.0.0.0', port=3000)
 
 # Define intents
 intents = discord.Intents.default()
@@ -146,6 +162,7 @@ async def on_message_edit(before, after):
             edit_counts[before.author.id] = 0
         edit_counts[before.author.id] += 1
         print(f"User {before.author.id} has edited a message. Total edits: {edit_counts[before.author.id]}")
+
 @bot.event
 async def on_reaction_add(reaction, user):
     if user.bot:
@@ -388,6 +405,10 @@ async def check_awards():
     user_reaction_counts.clear()
     tag_counts.clear()
     image_counts.clear()
+
+# Run Flask in a separate thread
+flask_thread = Thread(target=run_flask)
+flask_thread.start()
 
 # Run the bot
 if TOKEN:
