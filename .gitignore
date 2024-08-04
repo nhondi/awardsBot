@@ -7,4 +7,7 @@ venv/
 env/
 
 # Token
-".token.txt" 
+.token.txt 
+
+# Constant Var for Release
+constants.py
