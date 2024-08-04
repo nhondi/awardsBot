@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from config import TOKEN
 from utils import ensure_awards_channel, ensure_awards_channel_and_permissions, create_congratulatory_message
 from shared import message_reactions, message_lengths, awards_channels, message_counts, edit_counts, link_counts, user_reaction_counts
+from constants import TASK_INTERVAL, AWARD_DISPLAY_DELAY
 import asyncio
 import re
 
@@ -18,10 +19,6 @@ intents.reactions = True
 intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# Define the interval for task loops
-TASK_INTERVAL = 15  # in seconds
-AWARD_DISPLAY_DELAY = 2  # delay between displaying awards in seconds
 
 async def send_message_to_awards_channel(guild, message_content):
     await ensure_awards_channel_and_permissions(guild, bot)
