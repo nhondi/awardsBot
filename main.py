@@ -303,10 +303,10 @@ async def check_awards():
                 await send_message_to_awards_channel(guild, congrats)
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
             else:
-                await send_message_to_awards_channel(guild, "No user found with the most reactions given this week.")
+                #await send_message_to_awards_channel(guild, "No user found with the most reactions given this week.")
                 await asyncio.sleep(AWARD_DISPLAY_DELAY)
         else:
-            await send_message_to_awards_channel(guild, "No reactions found for React-ive award this week.")
+            #await send_message_to_awards_channel(guild, "No reactions found for React-ive award this week.")
             await asyncio.sleep(AWARD_DISPLAY_DELAY)
 
     message_reactions.clear()

@@ -14,5 +14,5 @@ def load_token(file_path: str) -> str:
         return ""
 
 # Path to your token file
-TOKEN_FILE_PATH = 'token.txt'
+TOKEN_FILE_PATH = '.token.txt'
 TOKEN = load_token(TOKEN_FILE_PATH)
