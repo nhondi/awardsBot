@@ -218,8 +218,8 @@ async def check_awards():
     most_images_user = None
     most_images_count = 0
 
-    one_week_ago = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(weeks=1)
-
+    one_week_ago = datetime.now(timezone.utc) - timedelta(weeks=1)
+    
     # Check messages for both criteria
     for message_id, data in message_reactions.items():
         message_created = data["message"].created_at
