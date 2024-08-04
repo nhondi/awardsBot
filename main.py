@@ -191,6 +191,10 @@ async def on_reaction_add(reaction, user):
     user_reaction_counts[user.id] += 1
     print(f"User {user.id} has added {user_reaction_counts[user.id]} reactions.")
 
+@tasks.loop(minutes = 10)
+async def activityCheck():
+    print("Bot Alive and Active")
+    
 @tasks.loop(seconds=TASK_INTERVAL)
 async def check_awards():
     print("Checking for awards...")   
