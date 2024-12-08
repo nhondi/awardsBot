@@ -55,8 +55,9 @@ async def send_update_message():
     """
     Sends an update message to the awards channel in all guilds.
     """
-    for guild in bot.guilds:
-        await send_message_to_awards_channel(guild, f"The bot '{bot.user.name}' has been updated!")
+    print(f"The bot '{bot.user.name}' has been updated!")
+    #for guild in bot.guilds:
+        #await send_message_to_awards_channel(guild, f"The bot '{bot.user.name}' has been updated!")
 
 @bot.event
 async def on_ready():
